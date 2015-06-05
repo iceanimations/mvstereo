@@ -3,9 +3,17 @@ import pymel.core as pc
 import re
 
 from . import utilities
-from .utilities import clamp, fovToFocalLength, lockAndHide
+reload(utilities)
+from .utilities import clamp, lockAndHide
 
-__all__ = ['createMultiRig', 'attachToCameraSet', 'registerMultiRig']
+from . import multExpression
+reload(multExpression)
+from .multExpression import getMultStereoExpression
+
+
+__all__ = ['createMultiRig', 'attachToCameraSet', 'registerMultiRig',
+'UnregisterMultiRig']
+
 __multiRigTypeName = 'MultiStereoRig'
 
 optimalDistance = 350.0
@@ -17,7 +25,7 @@ endnumPattern = re.compile(r'^.*?(\d*)$')
 
 def createMultiStereoCamera(root, rootShape, camIndex, nStereoCams=9):
     cam, camShape = pc.camera()
-    cam.parent(root)
+    pc.parent(cam, root)
     name = str(root) + '_StereoCam%02d' % camIndex
     cam.rename(name)
 
@@ -42,33 +50,83 @@ def createMultiStereoCamera(root, rootShape, camIndex, nStereoCams=9):
         rootShape.attr(attr) >> camShapeAttr
         camShapeAttr.set(keyable=False)
 
-    for attr in [ 'scaleX', 'scaleY', 'scaleZ',
-                    'visibility',
-                    'centerOfInterest' ] :
+    for attr in [ 'visibility', 'centerOfInterest' ] :
         cam.attr(attr).set(keyable=False)
 
+    #stereoOffset = stereoEyeSeparation * (camIndex - nCams/2.0 + 0.5)
+    #shift = -stereoOffset * (fl/10.0) / imageZ * p / (INCHES_TO_MM/10)
+    mult = camIndex - nStereoCams / 2.0 + 0.5
+    offsetAttr = 'stereoRightOffset'
+    rotAttr = 'stereoRightAngle'
+    hfoAttr = 'filmBackOutputRight'
+    if mult < 0:
+        offsetAttr = 'stereoLeftOffset'
+        rotAttr = 'stereoLeftAngle'
+        hfoAttr = 'filmBackOutputLeft'
+        mult = abs(mult)
+    offsetAttr = root.attr(offsetAttr)
+    rotAttr = root.attr(rotAttr)
+    hfoAttr = root.attr(hfoAttr)
+
+    expression = getMultStereoExpression(
+            mult,
+            hfoAttr,
+            offsetAttr,
+            rotAttr,
+            rootShape.zeroParallax,
+            cam.translateX,
+            camShape.hfo,
+            cam.rotateX
+            )
+    exprNode = pc.expression(s=expression)
+    exprNode.rename(cam.name() + '_expression')
+
+    lockAndHide(cam)
     return cam
+
+
+def createMainCam(basename='multiStereoCamera'):
+    ''' create the main stereoRig Root Cam'''
+
+    root = pc.createNode( 'stereoRigTransform', name=basename )
+
+    numstr = ''
+    nummatch = endnumPattern.match(root.name())
+    if nummatch:
+        numstr = nummatch.group(1)
+
+    rootShape = pc.createNode('stereoRigCamera',
+            name=basename + 'Shape' + numstr,
+            parent=root)
+
+    return root, rootShape
 
 
 def createMultiRig(basename='multiStereoCamera', nStereoCams=9):
     ''' Creates a Simple Multi Stereo camera rig to be used in autostereoscopic
     displays '''
-    if nStereoCams < 2:
-        nStereoCams = 2
 
-    root = pc.createNode( 'stereoRigTransform', name=basename )
+    try:
+        nStereoCams = clamp(2, 16, nStereoCams)
 
-    numstr = ''
-    nummatch = endnumPattern.match(root)
-    if nummatch:
-        numstr = nummatch.group(1)
+        # create Main Central Cam
+        root, rootShape = createMainCam(basename)
 
-    rootShape = pc.createNode('stereoRigCamera', name=basename + 'Shape' + numstr)
+        # create Stereo Cams
+        stereoCams = [
+                createMultiStereoCamera(root, rootShape, i, nStereoCams)
+                for i in range( nStereoCams )]
 
-    stereoCams = [createMultiStereoCamera(root, rootShape, i, nStereoCams) for
-            i in nStereoCams]
+        camarray = [root, stereoCams[nStereoCams/2], stereoCams[nStereoCams/2+1]]
 
-    return [root, stereoCams[nStereoCams/2], stereoCams[nStereoCams/2+1]]
+        pc.select(root)
+        return [node.name() for node in camarray]
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        print e
+        raise
 
 
 def attachToCameraSet(*args, **keywords):
@@ -77,6 +135,14 @@ def attachToCameraSet(*args, **keywords):
 
 def registerMultiRig():
     pc.loadPlugin('stereoCamera', quiet=True)
+    UnregisterMultiRig()
     pc.stereoRigManager(add=[__multiRigTypeName, 'Python',
-        'mvstereo.cammaker.createMultiRig'])
+        'mvstereo.createMultiRig'])
+
+def UnregisterMultiRig():
+    try:
+        pc.stereoRigManager(delete=__multiRigTypeName)
+    except:
+        pass
+
 
