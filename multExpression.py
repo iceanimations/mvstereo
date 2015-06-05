@@ -18,7 +18,7 @@ def getMultStereoExpression(
         zeroAttr,
         camTranslateXAttr,
         camHfoAttr,
-        camRotXAttr
+        camRotYAttr
         ):
     data = {}
     data['s_mult']=str(mult)
@@ -27,8 +27,8 @@ def getMultStereoExpression(
     data['s_rotAttr']=str(rotAttr)
     data['s_zeroParallaxPlaneAttr']=str(zeroAttr)
     data['s_camTranslateXAttr']=str(camTranslateXAttr)
-    data['s_camHfoAttr']=camHfoAttr
-    data['s_camRotXAttr']=camRotXAttr
+    data['s_camHfoAttr']=str( camHfoAttr )
+    data['s_camRotYAttr']=str( camRotYAttr )
     expression = multExpressionTemplate.safe_substitute(data)
     return expression
 

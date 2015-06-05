@@ -10,5 +10,5 @@ else $rot = 0;
 
 $s_camTranslateXAttr = $mult * $offset;
 $s_camHfoAttr = $mult * $hfo;
-$s_camRotXAttr = $rot;
+$s_camRotYAttr = $rot;
 
