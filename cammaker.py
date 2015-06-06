@@ -140,8 +140,7 @@ def createMainFrustum(leftCam, rightCam, parent, mainCam):
     rightCam.message >> frustum.rightCamera
     mainCam.message >> frustum.centerCamera
 
-    rightCam.getShape().displayCameraFrustum.set(True)
-    leftCam.getShape().displayCameraFrustum.set(True)
+    mainCam.displayFrustum.set(5)
 
     return frustum
 
@@ -161,12 +160,11 @@ def createMultiRig(basename='multiStereoCamera', nStereoCams=9):
                 createMultiStereoCamera(root, rootShape, i, nStereoCams)
                 for i in range( nStereoCams )]
 
-        camarray = [root, stereoCams[nStereoCams/2-1], stereoCams[nStereoCams/2]]
-
-        createMainFrustum(camarray[0], camarray[1], root, rootShape)
+        createMainFrustum(stereoCams[0], stereoCams[-1], root, rootShape)
 
         pc.select(root)
-        return [node.name() for node in camarray]
+        return [node.name() for node in [ root, stereoCams[nStereoCams/2-1],
+            stereoCams[nStereoCams/2] ] ]
 
     except Exception as e:
         import traceback
